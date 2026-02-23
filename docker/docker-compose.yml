@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  wazuh.indexer:
+    image: wazuh/wazuh-indexer:4.7.2
+    hostname: wazuh.indexer
+    environment:
+      - "OPENSEARCH_INITIAL_ADMIN_PASSWORD=SecretPass123!"
+    volumes:
+      - wazuh-indexer-data:/usr/share/wazuh-indexer/data
+    healthcheck:
+      test: ["CMD", "curl", "-k", "-f", "https://localhost:9200"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+  wazuh.manager:
+    image: wazuh/wazuh-manager:4.7.2
+    hostname: wazuh.manager
+    depends_on:
+      wazuh.indexer:
+        condition: service_healthy
+    environment:
+      - INDEXER_URL=https://wazuh.indexer:9200
+      - INDEXER_USERNAME=admin
+      - INDEXER_PASSWORD=SecretPass123!
+    volumes:
+      - wazuh-manager-data:/var/ossec/data
+      - wazuh-manager-logs:/var/ossec/logs
+    healthcheck:
+      test: ["CMD", "/var/ossec/bin/wazuh-control", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: always
+
+  wazuh.dashboard:
+    image: wazuh/wazuh-dashboard:4.7.2
+    hostname: wazuh.dashboard
+    ports:
+      - "443:5601"
+    depends_on:
+      wazuh.manager:
+        condition: service_healthy
+    environment:
+      - INDEXER_USERNAME=admin
+      - INDEXER_PASSWORD=SecretPass123!
+    volumes:
+      - wazuh-dashboard-config:/usr/share/wazuh-dashboard/data
+    restart: always
+
+volumes:
+  wazuh-indexer-data:
+  wazuh-manager-data:
+  wazuh-manager-logs:
+  wazuh-dashboard-config:
